@@ -1,0 +1,55 @@
+---
+title: "greedy_algo_summary"
+output: html_document
+date: "2025-10-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Library
+```{r}
+library("ggplot2")
+theme_set(theme_bw())
+```
+
+
+
+# Identifiable graphs
+
+## n=3
+
+```{r}
+# Load results
+load("~/Documents/LPSM/ongoing_work/Estimation/Greedy-and-IHAD-algorithms/Greedy_algorithm/results/n_4.RData")
+```
+
+```{r}
+# Print first 10 entries of results
+print(results_df[1:10, c("lambda_index", "converged", "support_correct", "objective_value", "runtime_secs", "error_message")])
+```
+
+```{r}
+# Accuracy
+print("The algorithm has recovered the true support in all cases?")
+print(all(results_df$support_correct))
+
+# Run time
+print("Basic stats of running time (secs):")
+summary_stats <- with(results_df, {
+  c(
+    mean   = mean(runtime_secs, na.rm = TRUE),
+    min    = min(runtime_secs, na.rm = TRUE),
+    Q1     = quantile(runtime_secs, 0.25, na.rm = TRUE),
+    median = median(runtime_secs, na.rm = TRUE),
+    Q3     = quantile(runtime_secs, 0.75, na.rm = TRUE),
+    max    = max(runtime_secs, na.rm = TRUE)
+  )
+})
+
+print(summary_stats)
+```
+```{r}
+print(results_df[results_df$support_correct == FALSE, c("lambda_index", "converged", "support_correct", "objective_value", "runtime_secs", "error_message")])
+```
+
