@@ -71,7 +71,7 @@ ADMM_supp <- function(Sigma,omega,Lambda_t,beta=0.5) {
       
       
       if(dis_1_2 < 1e-6 && obj < 1e-6) {
-      # if(dis_1_2 < 1e-6) {
+        # if(dis_1_2 < 1e-6) {
         return(list(TRUE,Lambda_1_curr,obj)) # Return the converged \Lambda and the objective function value
       }
       
@@ -82,27 +82,4 @@ ADMM_supp <- function(Sigma,omega,Lambda_t,beta=0.5) {
     }
   }
   return(list(FALSE,Lambda_1_curr,obj))
-}
-
-# Greedy algorithm
-algo_greedy <- function(Sigma,omega=1) {
-  n <- ncol(Sigma)
-  
-  # List of indices of possible edges
-  edge_ind <- setdiff(1:(n**2),seq(1,n**2,n+1))
-  
-  # Explore all possible support with num_edge - 1 and num_edge edges
-  for (i in 1:length(edge_ind)) {
-    edge_cand <- combn(edge_ind,i)
-    for (j in seq(1,ncol(edge_cand),1)) {
-      Lambda_t <- diag(n)
-      Lambda_t[edge_cand[,j]] <- 1
-      res_ADMM_supp <- ADMM_supp(Sigma,omega,Lambda_t)
-      if(res_ADMM_supp[[1]]) {
-        return (res_ADMM_supp)
-      }
-    }
-  }
-  print("The greedy algorithm never finds an optimal support.")
-  return (res_ADMM_supp)
 }

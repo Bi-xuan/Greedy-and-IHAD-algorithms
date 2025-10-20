@@ -20,7 +20,7 @@ plan(multisession, workers = parallel::detectCores() - 1)
 # -------- Data Loading --------
 # Load the ground truth Lambda matrices
 source("Greedy_algorithm/algorithm.R")
-load("Lambda_star/Lambda_star_n_5.RData")
+load("Lambda_star/trees/n_3_trees_sig_0_2.RData")
 
 n <- ncol(Lambda_star[[1]])
 omega <- 1 # The true omega
@@ -78,6 +78,10 @@ results_list <- future_lapply(1:n_inits, function(i) {
     result$error_message <- "Generated Sigma was NULL or not positive definite."
   }
   
+  # Save partial result
+  partial_file <- sprintf("Greedy_algorithm/results/partial_result/result_%03d.RData", i)
+  save(result, file = partial_file)
+  
   # p() # This updates the progress bar
   return(result)
 }, future.seed = TRUE) # future.seed = TRUE makes parallel processing reproducible
@@ -113,7 +117,7 @@ cat("\n--- Results Summary (first 10 entries) ---\n")
 print(results_df[1:10, c("lambda_index", "converged", "support_correct", "objective_value", "runtime_secs", "error_message")])
 
 # -------- Store result --------
-save(results_df, file = "Greedy_algorithm/results/n_5.RData")
+save(results_df, file = "Greedy_algorithm/results/trees/n_3_ADMM_VdC_10inits_sig_0_2.RData")
 
 
 

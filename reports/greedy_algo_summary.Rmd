@@ -9,20 +9,121 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 # Library
 ```{r}
+library('Matrix')
+
 library("ggplot2")
 theme_set(theme_bw())
 ```
 
+# n=3
 
-
-# Identifiable graphs
-
-## n=3
-
+Load complete results.
 ```{r}
 # Load results
-load("~/Documents/LPSM/ongoing_work/Estimation/Greedy-and-IHAD-algorithms/Greedy_algorithm/results/n_4.RData")
+load("~/Documents/LPSM/ongoing_work/Estimation/Greedy-and-IHAD-algorithms/Greedy_algorithm/results/trees/n_3_ADMM_diag_sig_0_2.RData")
 ```
+
+Load and save partial results (when the algo takes too long to run).
+```{r}
+# Directory with partial files
+partial_dir <- "~/Documents/LPSM/ongoing_work/Estimation/Greedy-and-IHAD-algorithms/Greedy_algorithm/results/partial_result" 
+files <- list.files(partial_dir, full.names = TRUE, pattern = "\\.RData")
+if (length(files) == 0) stop("No partial .RData files found in: ", partial_dir)
+
+# We'll keep a map from lambda_index to the latest result list
+result_map <- list()
+
+# Process files in file-time order so later files overwrite earlier ones
+file_info <- file.info(files)
+files_ordered <- files[order(file_info$mtime)]
+
+for (f in files_ordered) {
+  e <- new.env()
+  loaded_names <- load(f, envir = e)
+
+  # Collect any candidate objects that look like "result" or "results_list"
+  # Prefer 'result' if present, otherwise 'results_list', otherwise try to infer.
+  if ("result" %in% loaded_names) {
+    candidates <- list(e$result)
+  } else if ("results_list" %in% loaded_names) {
+    candidates <- e$results_list
+    # if results_list is itself a list of results, ensure it is a list of lists
+    if (!is.list(candidates) || length(candidates) == 0) next
+    # keep as-is
+  } else {
+    # Try to find any list objects that look like individual `result` items or a list of them
+    candidates <- list()
+    for (nm in loaded_names) {
+      obj <- e[[nm]]
+      if (is.list(obj) && !is.null(obj$lambda_index)) {
+        # single result-like object
+        candidates <- c(candidates, list(obj))
+      } else if (is.list(obj) && length(obj) > 0 && all(sapply(obj, is.list) & sapply(obj, function(x) !is.null(x$lambda_index)))) {
+        # object is a list of result-lists (named or unnamed)
+        candidates <- c(candidates, obj)
+      }
+    }
+    if (length(candidates) == 0) {
+      warning("No recognizable result object in file: ", f)
+      next
+    }
+  }
+
+  # Normalize candidates to a list of result-lists
+  normalized <- list()
+  if (!is.list(candidates[[1]]) || !("lambda_index" %in% names(candidates[[1]]))) {
+    # candidates is likely a list-of-lists already from results_list; just append
+    normalized <- candidates
+  } else {
+    # candidates is a single result list; keep it
+    normalized <- candidates
+  }
+
+  # Insert/update into map (later files overwrite earlier results for same lambda_index)
+  for (res in normalized) {
+    if (is.null(res$lambda_index)) {
+      warning("Skipping an entry with no lambda_index in file: ", f)
+      next
+    }
+    key <- as.character(res$lambda_index)
+    result_map[[key]] <- res  # overwrite previous
+  }
+}
+
+# Convert map to ordered list by lambda_index (numeric ascending)
+all_keys <- names(result_map)
+ordered_keys <- all_keys[order(as.numeric(all_keys))]
+results_list <- lapply(ordered_keys, function(k) result_map[[k]])
+
+# Now build results_df exactly like your original script
+results_df <- do.call(rbind, lapply(results_list, function(res) {
+  data.frame(
+    lambda_index = res$lambda_index,
+    converged = ifelse(is.null(res$converged), NA, res$converged),
+    objective_value = ifelse(is.null(res$objective_value), NA, res$objective_value),
+    runtime_secs = ifelse(is.null(res$runtime_secs), NA, res$runtime_secs),
+    error_message = ifelse(is.null(res$error_message), NA, res$error_message),
+    stringsAsFactors = FALSE
+  )
+}))
+
+# Add list-columns for the matrices
+results_df$true_lambda <- lapply(results_list, `[[`, "ground_truth")
+results_df$estimated_lambda <- lapply(results_list, `[[`, "estimated_lambda")
+
+# Compute support_correct (same logic as your original)
+results_df$support_correct <- mapply(function(true, est) {
+  if (is.null(est) || any(is.na(est))) return(FALSE)
+  all((true != 0) == (est != 0))
+}, results_df$true_lambda, results_df$estimated_lambda)
+
+# Re-order rows by lambda_index numeric (just in case)
+results_df <- results_df[order(as.numeric(results_df$lambda_index)), ]
+
+# Save partial results
+save(results_df,file="~/Documents/LPSM/ongoing_work/Estimation/Greedy-and-IHAD-algorithms/Greedy_algorithm/results/trees/n_3_ADMM_VdC_sig_0_2_partial.RData")
+```
+
 
 ```{r}
 # Print first 10 entries of results
@@ -49,7 +150,15 @@ summary_stats <- with(results_df, {
 
 print(summary_stats)
 ```
+Print failed cases.
 ```{r}
-print(results_df[results_df$support_correct == FALSE, c("lambda_index", "converged", "support_correct", "objective_value", "runtime_secs", "error_message")])
+print(results_df[results_df$support_correct == FALSE , c("lambda_index", "converged", "support_correct", "objective_value", "runtime_secs", "error_message")])
+```
+Print cases where we have recovered another graph with the same number of edges -> complete failure.
+```{r}
+nonzeros <- sapply(results_df$estimated_lambda, nnzero)
+subset_rows <- !results_df$support_correct & nonzeros == 5
+
+print(results_df[subset_rows,c("lambda_index", "converged", "support_correct", "objective_value", "runtime_secs", "error_message")])
 ```
 
